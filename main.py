@@ -7,7 +7,7 @@ Created on Mon Jun 25 05:16:22 2018
 
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-#from sklearn.linear_model import BayesianRidge, LassoLars, LinearRegression
+from sklearn.linear_model import BayesianRidge, LassoLars, LinearRegression
 import numpy as np
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
@@ -145,8 +145,8 @@ def create_predictions_custs(train, test, load_or_run = 'run'):
     return testpreds;
 
 def create_predictions_sales(train, test, load_or_run = 'run'):
-    sub= train
-    subtest = test.drop('Sales', axis = 1)
+    sub= train.drop('Customers', axis = 1)
+    subtest = test.drop(['Sales', 'Customers'], axis = 1)
 
     subtest.Open = subtest.Open.astype('int')
     for c in sub.columns:
@@ -182,7 +182,7 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
 
     param_grid = {
             'n_jobs':[4],
-            'learning_rate': [.01,.1,.3],
+            'learning_rate': [.1],
             'max_depth': [10],
             'n_estimators':[500],
             'booster':['gbtree'],
@@ -199,6 +199,13 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
     else:
         xg.fit(X = trn, y = trgt_train)
         print('ran')
+
+    rf = RandomForestRegressor(n_estimators = 500, random_state = 42, n_jobs = 4)
+    rf.fit(trn, trgt_train)
+    preds = rf.predict(tst)
+    rmse(preds, trgt_test)
+    mae(preds, trgt_test)
+
 
     print(xg.best_estimator_)
     print(time.time() - start)
