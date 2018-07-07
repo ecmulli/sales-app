@@ -68,23 +68,13 @@ def import_data():
     test['Sales'] = -1
     comb = train.append(test)
 
-#    cat_cols = ['StoreType', 'Assortment', 'DayOfWeek', 'Open', 'Promo',
-#                'SchoolHoliday', 'StateHoliday', 'month']
-#
-#    for c in cat_cols:
-#        comb[c] = comb[c].astype('category')
-##        train[c] = train[c].astype('category')
-##        cats = train[c].cat.categories.tolist()
-##        print(cats)
-##        test[c] = pd.Categorical(values=test[c], categories = cats)
-
     comb = comb.drop(['CompNormDist', 'CompOpenDate', 'CompetitionDistance','Date','CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear', 'Promo2SinceWeek', 'Promo2SinceYear', 'PromoInterval', 'SchoolHoliday', 'StateHoliday' ], axis = 1)
 
     test = comb.loc[comb.Sales == -1,]
     train = comb.loc[comb.Sales != -1]
     return train, test;
 
-def create_predictions_custs(train, test):
+def create_predictions_custs(train, test, load_or_run = 'run'):
     #sub = train.loc[train.Store == 1]
     sub= train
     sub = sub.drop(['Sales'], axis = 1)
@@ -106,16 +96,9 @@ def create_predictions_custs(train, test):
             lbl.fit(list(subtest[c].values))
             subtest[c] = lbl.transform(subtest[c].values)
 
-
-
-#    sub = pd.get_dummies(sub)
-#    subtest = pd.get_dummies(subtest)
-
     target = np.array(sub.Customers)
     sub = sub.drop('Customers', axis = 1)
-    cols = list(sub.columns)
     sub = np.array(sub)
-    testcols = list(subtest.columns)
     subtest = np.array(subtest)
 
     trn, tst, trgt_train, trgt_test = train_test_split(sub, target, test_size = .3, random_state = 42)
@@ -142,7 +125,12 @@ def create_predictions_custs(train, test):
     start = time.time()
     xg = XGBRegressor(silent = 0,)
     xg = GridSearchCV(xg, param_grid)
-    xg.fit(X = trn, y = trgt_train)
+    if load_or_run == 'load':
+        xg = joblib.load("customers.joblib.dat")
+        print('loaded')
+    else:
+        xg.fit(X = trn, y = trgt_train)
+        print('ran')
     print(time.time() - start)
     predsgb = xg.predict(tst)
     rmse(predsgb, trgt_test)
@@ -151,13 +139,12 @@ def create_predictions_custs(train, test):
 
 
     joblib.dump(xg, "customers.joblib.dat")
-#    xg = joblib.load("customers.joblib.dat")
 
     #originally tried: gamma-linear regression, random forest, lasso and bayesian ridge regression
 
     return testpreds;
 
-def create_predictions_sales(train, test):
+def create_predictions_sales(train, test, load_or_run = 'run'):
     sub= train
     subtest = test.drop('Sales', axis = 1)
 
@@ -178,8 +165,8 @@ def create_predictions_sales(train, test):
 
     target = np.array(sub.Sales)
     sub = sub.drop('Sales', axis = 1)
-    cols = list(sub.columns)
     sub = np.array(sub)
+    subtest = np.array(subtest)
 
     trn, tst, trgt_train, trgt_test = train_test_split(sub, target, test_size = .3, random_state = 42)
 
@@ -193,18 +180,6 @@ def create_predictions_sales(train, test):
         print(error)
         return(error)
 
-#    rf = RandomForestRegressor(n_estimators = 500, random_state = 42)
-#    rf.fit(trn, trgt_train)
-#    preds = rf.predict(tst)
-#    rmse(preds, trgt_test)
-#    mae(preds, trgt_test)
-#
-#    imprt = rf.feature_importances_
-#    pd.DataFrame({
-#            'var' : cols,
-#            'importances' : imprt
-#            })
-
     param_grid = {
             'n_jobs':[4],
             'learning_rate': [.01,.1,.3],
@@ -217,39 +192,27 @@ def create_predictions_sales(train, test):
     start = time.time()
     xg = XGBRegressor(silent = 0)
     xg = GridSearchCV(xg, param_grid)
-    xg.fit(X = trn, y = trgt_train)
+    if load_or_run == 'load':
+        xg = joblib.load("sales.joblib.dat")
+        print('loaded')
+
+    else:
+        xg.fit(X = trn, y = trgt_train)
+        print('ran')
+
     print(xg.best_estimator_)
     print(time.time() - start)
     preds = xg.predict(tst)
     rmse(preds, trgt_test)
     mae(preds, trgt_test)
-
-#    rid = BayesianRidge()
-#    rid.fit(trn, trgt_train)
-#    preds = rid.predict(tst)
-#    rmse(preds, trgt_test)
-#    mae(preds, trgt_test)
-#
-#    las = LassoLars(alpha = 1)
-#    las.fit(trn, trgt_train)
-#    preds = las.predict(tst)
-#    rmse(preds, trgt_test)
-#    mae(preds, trgt_test)
-#
-#    lin = LinearRegression()
-#    lin.fit(trn, trgt_train)
-#    preds = lin.predict(tst)
-#    rmse(preds, trgt_test)
-#    mae(preds, trgt_test)
+    custpreds = xg.predict(subtest)
 
     joblib.dump(xg, "sales.joblib.dat")
 
-    subtest['Sales'] = preds
-
-    return(subtest);
+    return(custpreds);
 
 if __name__ == '__main__' :
     train, test = import_data()
-    test['Customers'] = testpreds
-#    test = create_predictions_custs(train, test)
-#    test = create_predictions_sales(train, test)
+    test['Customers'] = create_predictions_custs(train,test, load_or_run = 'load')
+    test['Sales'] = create_predictions_sales(train,test, load_or_run = 'load')
+    test.to_csv('test_with_preds.csv')
