@@ -6,13 +6,11 @@ Created on Mon Jun 25 05:16:22 2018
 """
 
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import BayesianRidge, LassoLars, LinearRegression
 import numpy as np
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 from sklearn.externals import joblib
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.model_selection import GridSearchCV
 from sklearn import preprocessing
 import time
 
@@ -68,15 +66,15 @@ def import_data():
     test['Sales'] = -1
     comb = train.append(test)
 
-    comb = comb.drop(['CompNormDist', 'CompOpenDate', 'CompetitionDistance','Date','CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear', 'Promo2SinceWeek', 'Promo2SinceYear', 'PromoInterval', 'SchoolHoliday', 'StateHoliday' ], axis = 1)
+    comb = comb.drop(['CompNormDist', 'CompOpenDate', 'CompetitionDistance','CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear', 'Promo2SinceWeek', 'Promo2SinceYear', 'PromoInterval', 'SchoolHoliday', 'StateHoliday' ], axis = 1)
 
     test = comb.loc[comb.Sales == -1,]
     train = comb.loc[comb.Sales != -1]
     return train, test;
 
 def create_predictions_sales(train, test, load_or_run = 'run'):
-    sub= train.drop('Customers', axis = 1)
-    subtest = test.drop(['Sales', 'Customers'], axis = 1)
+    sub= train.drop(['Customers', 'Date'], axis = 1)
+    subtest = test.drop(['Sales', 'Customers', 'Date'], axis = 1)
 
     subtest.Open = subtest.Open.astype('int')
     for c in sub.columns:
@@ -148,3 +146,4 @@ if __name__ == '__main__' :
 #    test1 = create_predictions_custs_then_sales(train,test, load_or_run = 'load')
     test['Sales'] = create_predictions_sales(train,test, load_or_run = 'load')
     test.to_csv('test_with_preds.csv')
+    train.to_csv('train_for_app.csv')
