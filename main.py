@@ -12,15 +12,18 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 from sklearn.externals import joblib
+from sklearn.model_selection import ParameterGrid, GridSearchCV
+from sklearn import preprocessing
+import datetime
 
 def import_data():
+
     train = pd.read_csv('train.csv')
     test = pd.read_csv('test.csv')
     stores = pd.read_csv('store.csv')
 
     train = train.merge(stores, how = 'left', on = 'Store')
     test = test.merge(stores, how = 'left', on = 'Store')
-
     train.Date = train.Date.astype('datetime64[ns]')
     test.Date = test.Date.astype('datetime64[ns]')
 
@@ -65,27 +68,100 @@ def import_data():
     test['Sales'] = -1
     comb = train.append(test)
 
-    cat_cols = ['StoreType', 'Assortment', 'DayOfWeek', 'Open', 'Promo',
-                'SchoolHoliday', 'StateHoliday', 'month']
+#    cat_cols = ['StoreType', 'Assortment', 'DayOfWeek', 'Open', 'Promo',
+#                'SchoolHoliday', 'StateHoliday', 'month']
+#
+#    for c in cat_cols:
+#        comb[c] = comb[c].astype('category')
+##        train[c] = train[c].astype('category')
+##        cats = train[c].cat.categories.tolist()
+##        print(cats)
+##        test[c] = pd.Categorical(values=test[c], categories = cats)
 
-    for c in cat_cols:
-        comb[c] = comb[c].astype('category')
-#        train[c] = train[c].astype('category')
-#        cats = train[c].cat.categories.tolist()
-#        print(cats)
-#        test[c] = pd.Categorical(values=test[c], categories = cats)
-
-    comb = comb.drop(['CompNormDist', 'CompOpenDate', 'CompetitionDistance', 'CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear', 'Date', 'Promo2SinceWeek', 'Promo2SinceYear', 'PromoInterval', 'SchoolHoliday', 'StateHoliday' ], axis = 1)
+    comb = comb.drop(['CompNormDist', 'CompOpenDate', 'CompetitionDistance','Date','CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear', 'Promo2SinceWeek', 'Promo2SinceYear', 'PromoInterval', 'SchoolHoliday', 'StateHoliday' ], axis = 1)
 
     test = comb.loc[comb.Sales == -1,]
     train = comb.loc[comb.Sales != -1]
     return train, test;
 
-def create_predictions_sales(train, test):
-#    sub = train.loc[train.Store == 1]
-#    sub = sub.drop(['Date', 'Store', 'CompOpen', 'StoreType', 'Assortment', 'CompDist'], axis = 1)
-#    test = test.drop(['Date', 'Store', 'CompOpen', 'StoreType', 'Assortment', 'CompDist'], axis = 1)
+def create_predictions_custs(train, test):
+    #sub = train.loc[train.Store == 1]
+    sub= train
+    sub = sub.drop(['Sales'], axis = 1)
+    subtest = test#.drop(['Date'], axis = 1)
 
+    subtest.Open = subtest.Open.astype('int')
+
+    for c in sub.columns:
+        if sub[c].dtype == 'object' or sub[c].dtype.name == 'category':
+            print(c)
+            lbl = preprocessing.LabelEncoder()
+            lbl.fit(list(sub[c].values))
+            sub[c] = lbl.transform(sub[c].values)
+
+    for c in subtest.columns:
+        if subtest[c].dtypes == 'object' or subtest[c].dtype.name == 'category':
+            print(c)
+            lbl = preprocessing.LabelEncoder()
+            lbl.fit(list(subtest[c].values))
+            subtest[c] = lbl.transform(subtest[c].values)
+
+
+
+#    sub = pd.get_dummies(sub)
+#    subtest = pd.get_dummies(subtest)
+
+    target = np.array(sub.Customers)
+    sub = sub.drop('Customers', axis = 1)
+    cols = list(sub.columns)
+    sub = np.array(sub)
+    testcols = list(subtest.columns)
+    subtest = np.array(subtest)
+
+    trn, tst, trgt_train, trgt_test = train_test_split(sub, target, test_size = .3, random_state = 42)
+
+    def rmse(preds, target):
+        error = np.sqrt(((preds-target) ** 2).mean())
+        print(error)
+        return(error)
+
+    def mae(preds, target):
+        error = np.mean(abs(preds-target))
+        print(error)
+        return(error)
+
+    param_grid = {
+            'n_jobs':[4],
+            'learning_rate': [.2],
+            'max_depth': [6],
+            'n_estimators':[100],
+            'booster':['gbtree'],
+            'gamma':[0],
+            'subsample':[1],
+            'colsample_bytree':[1]}
+
+    xg = XGBRegressor(silent = 0)
+    xg = GridSearchCV(xg, param_grid)
+    xg.fit(X = trn, y = trgt_train)
+    predsgb = xg.predict(tst)
+    rmse(preds, trgt_test)
+    mae(preds, trgt_test)
+
+    joblib.dump(xg, "customers.joblib.dat")
+#    xg = joblib.load("customers.joblib.dat")
+
+#    rf = RandomForestRegressor(n_estimators = 500, random_state = 42)
+#    rf.fit(trn, trgt_train)
+#    predsrf = rf.predict(tst)
+#    rmse(preds, trgt_test)
+#    mae(preds, trgt_test)
+
+    subtest = pd.DataFrame(subtest)
+    subtest['Customers'] = preds
+
+    return subtest;
+
+def create_predictions_sales(train, test):
     sub= train
     sub = sub.drop(['Date'], axis = 1)
     subtest = test.drop(['Date'], axis = 1)
@@ -123,8 +199,19 @@ def create_predictions_sales(train, test):
 #            'importances' : imprt
 #            })
 
-    xg = XGBRegressor(n_estimators=100, learning_rate=0.1, gamma=0
-                      , subsample=0.75,max_depth=7)
+    param_grid = {
+            'n_jobs':[-1],
+            'learning_rate': [.03, 0.05, .07],
+            'max_depth': [6,8,10,12],
+            'n_estimators':[100,300,500],
+            'booster':['gbtree'],
+            'gamma':[i/10.0 for i in range(0,5)],
+            'subsample':[i/10.0 for i in range(6,10)],
+            'colsample_bytree':[i/10.0 for i in range(6,10)]
+            }
+
+    xg = XGBRegressor()
+    xg = GridSearchCV(xg, param_grid)
     xg.fit(X = trn, y = trgt_train)
     preds = xg.predict(tst)
     rmse(preds, trgt_test)
@@ -148,64 +235,13 @@ def create_predictions_sales(train, test):
 #    rmse(preds, trgt_test)
 #    mae(preds, trgt_test)
 
+    joblib.dump(xg, "sales.joblib.dat")
 
+    subtest['Sales'] = preds
 
-
-def create_predictions_custs(train, test):
-    #sub = train.loc[train.Store == 1]
-    sub= train
-    sub = sub.drop(['Sales'], axis = 1)
-#    subtest = test.drop(['Date'], axis = 1)
-
-    subtest.Open = subtest.Open.astype('int')
-    sub = pd.get_dummies(sub)
-    subtest = pd.get_dummies(subtest)
-
-    target = np.array(sub.Customers)
-    sub = sub.drop('Customers', axis = 1)
-    cols = list(sub.columns)
-    sub = np.array(sub)
-    testcols = list(subtest.columns)
-    subtest = np.array(subtest)
-
-    trn, tst, trgt_train, trgt_test = train_test_split(sub, target, test_size = .3, random_state = 42)
-
-    def rmse(preds, target):
-        error = np.sqrt(((preds-target) ** 2).mean())
-        print(error)
-        return(error)
-
-    def mae(preds, target):
-        error = np.mean(abs(preds-target))
-        print(error)
-        return(error)
-
-    xg = XGBRegressor(n_estimators=100, learning_rate=0.08, gamma=0, subsample=0.75,
-                           colsample_bytree=1, max_depth=7)
-    xg.fit(X = trn, y = trgt_train)
-    preds = xg.predict(tst)
-    rmse(preds, trgt_test)
-    mae(preds, trgt_test)
-
-    joblib.dump(xg, "customers.joblib.dat")
-    xg2 = joblib.load("customers.joblib.dat")
-
-    preds2 = xg2.predict(tst)
-    rf = RandomForestRegressor(n_estimators = 500, random_state = 42)
-    rf.fit(trn, trgt_train)
-    preds = rf.predict(tst)
-    rmse(preds, trgt_test)
-    mae(preds, trgt_test)
-
-    subtest = pd.DataFrame(subtest)
-    subtest['Customers'] = preds
-
-    return subtest
+    return(subtest);
 
 if __name__ == '__main__' :
     train, test = import_data()
-
-
 #    test = create_predictions_custs(train, test)
-
-
+#    test = create_predictions_sales(train, test)
