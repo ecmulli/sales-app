@@ -12,9 +12,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 from sklearn.externals import joblib
-from sklearn.model_selection import ParameterGrid, GridSearchCV
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn import preprocessing
-import datetime
+import time
 
 def import_data():
 
@@ -88,7 +88,7 @@ def create_predictions_custs(train, test):
     #sub = train.loc[train.Store == 1]
     sub= train
     sub = sub.drop(['Sales'], axis = 1)
-    subtest = test#.drop(['Date'], axis = 1)
+    subtest = test.drop(['Sales', 'Customers'], axis = 1)
 
     subtest.Open = subtest.Open.astype('int')
 
@@ -132,43 +132,49 @@ def create_predictions_custs(train, test):
 
     param_grid = {
             'n_jobs':[4],
-            'learning_rate': [.2],
-            'max_depth': [6],
-            'n_estimators':[100],
+            'learning_rate': [.01,.1,.3],
+            'max_depth': [10],
+            'n_estimators':[300],
             'booster':['gbtree'],
             'gamma':[0],
             'subsample':[1],
             'colsample_bytree':[1]}
-
-    xg = XGBRegressor(silent = 0)
+    start = time.time()
+    xg = XGBRegressor(silent = 0,)
     xg = GridSearchCV(xg, param_grid)
     xg.fit(X = trn, y = trgt_train)
+    print(time.time() - start)
     predsgb = xg.predict(tst)
-    rmse(preds, trgt_test)
-    mae(preds, trgt_test)
+    rmse(predsgb, trgt_test)
+    mae(predsgb, trgt_test)
+    testpreds = xg.predict(subtest)
+
 
     joblib.dump(xg, "customers.joblib.dat")
 #    xg = joblib.load("customers.joblib.dat")
 
-#    rf = RandomForestRegressor(n_estimators = 500, random_state = 42)
-#    rf.fit(trn, trgt_train)
-#    predsrf = rf.predict(tst)
-#    rmse(preds, trgt_test)
-#    mae(preds, trgt_test)
+    #originally tried: gamma-linear regression, random forest, lasso and bayesian ridge regression
 
-    subtest = pd.DataFrame(subtest)
-    subtest['Customers'] = preds
-
-    return subtest;
+    return testpreds;
 
 def create_predictions_sales(train, test):
     sub= train
-    sub = sub.drop(['Date'], axis = 1)
-    subtest = test.drop(['Date'], axis = 1)
+    subtest = test.drop('Sales', axis = 1)
 
     subtest.Open = subtest.Open.astype('int')
-    sub = pd.get_dummies(sub)
-    subtest = pd.get_dummies(subtest)
+    for c in sub.columns:
+        if sub[c].dtype == 'object' or sub[c].dtype.name == 'category':
+            print(c)
+            lbl = preprocessing.LabelEncoder()
+            lbl.fit(list(sub[c].values))
+            sub[c] = lbl.transform(sub[c].values)
+
+    for c in subtest.columns:
+        if subtest[c].dtypes == 'object' or subtest[c].dtype.name == 'category':
+            print(c)
+            lbl = preprocessing.LabelEncoder()
+            lbl.fit(list(subtest[c].values))
+            subtest[c] = lbl.transform(subtest[c].values)
 
     target = np.array(sub.Sales)
     sub = sub.drop('Sales', axis = 1)
@@ -200,19 +206,20 @@ def create_predictions_sales(train, test):
 #            })
 
     param_grid = {
-            'n_jobs':[-1],
-            'learning_rate': [.03, 0.05, .07],
-            'max_depth': [6,8,10,12],
-            'n_estimators':[100,300,500],
+            'n_jobs':[4],
+            'learning_rate': [.01,.1,.3],
+            'max_depth': [10],
+            'n_estimators':[500],
             'booster':['gbtree'],
-            'gamma':[i/10.0 for i in range(0,5)],
-            'subsample':[i/10.0 for i in range(6,10)],
-            'colsample_bytree':[i/10.0 for i in range(6,10)]
-            }
-
-    xg = XGBRegressor()
+            'gamma':[0],
+            'subsample':[1],
+            'colsample_bytree':[1]}
+    start = time.time()
+    xg = XGBRegressor(silent = 0)
     xg = GridSearchCV(xg, param_grid)
     xg.fit(X = trn, y = trgt_train)
+    print(xg.best_estimator_)
+    print(time.time() - start)
     preds = xg.predict(tst)
     rmse(preds, trgt_test)
     mae(preds, trgt_test)
@@ -243,5 +250,6 @@ def create_predictions_sales(train, test):
 
 if __name__ == '__main__' :
     train, test = import_data()
+    test['Customers'] = testpreds
 #    test = create_predictions_custs(train, test)
 #    test = create_predictions_sales(train, test)
