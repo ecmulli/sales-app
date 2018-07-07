@@ -179,33 +179,25 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
         error = np.mean(abs(preds-target))
         print(error)
         return(error)
-
-    param_grid = {
-            'n_jobs':[4],
-            'learning_rate': [.1],
-            'max_depth': [10],
-            'n_estimators':[500],
-            'booster':['gbtree'],
-            'gamma':[0],
-            'subsample':[1],
-            'colsample_bytree':[1]}
-    start = time.time()
-    xg = XGBRegressor(silent = 0)
-    xg = GridSearchCV(xg, param_grid)
     if load_or_run == 'load':
         xg = joblib.load("sales.joblib.dat")
         print('loaded')
-
     else:
+        param_grid = {
+                'n_jobs':[4],
+                'learning_rate': [.05,.1,.2],
+                'max_depth': [8,10],
+                'n_estimators':[500],
+                'booster':['gbtree'],
+                'gamma':[0],
+                'subsample':[1],
+                'colsample_bytree':[1]}
+        start = time.time()
+        xg = XGBRegressor(silent = 0)
+        xg = GridSearchCV(xg, param_grid)
         xg.fit(X = trn, y = trgt_train)
+        joblib.dump(xg, "sales.joblib.dat")
         print('ran')
-
-    rf = RandomForestRegressor(n_estimators = 500, random_state = 42, n_jobs = 4)
-    rf.fit(trn, trgt_train)
-    preds = rf.predict(tst)
-    rmse(preds, trgt_test)
-    mae(preds, trgt_test)
-
 
     print(xg.best_estimator_)
     print(time.time() - start)
@@ -213,8 +205,12 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
     rmse(preds, trgt_test)
     mae(preds, trgt_test)
     custpreds = xg.predict(subtest)
-
-    joblib.dump(xg, "sales.joblib.dat")
+#
+#    rf = RandomForestRegressor(n_estimators = 500, random_state = 42, n_jobs = 4)
+#    rf.fit(trn, trgt_train)
+#    preds = rf.predict(tst)
+#    rmse(preds, trgt_test)
+#    mae(preds, trgt_test)
 
     return(custpreds);
 
