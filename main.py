@@ -13,6 +13,8 @@ from sklearn.externals import joblib
 from sklearn.model_selection import GridSearchCV
 from sklearn import preprocessing
 import time
+import xgboost
+import graphviz
 
 def import_data():
 
@@ -24,6 +26,9 @@ def import_data():
     test = test.merge(stores, how = 'left', on = 'Store')
     train.Date = train.Date.astype('datetime64[ns]')
     test.Date = test.Date.astype('datetime64[ns]')
+
+    train = train[(train.Store ==262) | (train.Store == 562)]
+    test = test[(test.Store ==262) | (test.Store == 562)]
 
     train['month'] = train.Date.map(lambda x: x.strftime('%m'))
     test['month'] = test.Date.map(lambda x: x.strftime('%m'))
@@ -93,6 +98,7 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
 
     target = np.array(sub.Sales)
     sub = sub.drop('Sales', axis = 1)
+    traincols = sub.columns
     sub = np.array(sub)
     subtest = np.array(subtest)
 
@@ -108,7 +114,7 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
         print(error)
         return(error)
     if load_or_run == 'load':
-        xg = joblib.load("sales.joblib.dat")
+        xg = joblib.load("sales2.joblib.dat")
         print('loaded')
     else:
         param_grid = {
@@ -120,18 +126,21 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
                 'gamma':[0],
                 'subsample':[1],
                 'colsample_bytree':[1]}
-        start = time.time()
         xg = XGBRegressor(silent = 0)
         xg = GridSearchCV(xg, param_grid)
         xg.fit(X = trn, y = trgt_train)
-        joblib.dump(xg, "sales.joblib.dat")
+        xg.Features = traincols
+        joblib.dump(xg, "sales2.joblib.dat")
         print('ran')
 
+#    feats = pd.DataFrame({'feats': traincols, 'importances':xg2.feature_importances_})
+#    feats.plot.bar( )
     print(xg.best_estimator_)
     preds = xg.predict(tst)
     rmse(preds, trgt_test)
     mae(preds, trgt_test)
-    custpreds = xg.predict(subtest)
+    testpreds = xg.predict(subtest)
+    trainpreds = xg.predict(sub)
 #
 #    rf = RandomForestRegressor(n_estimators = 500, random_state = 42, n_jobs = 4)
 #    rf.fit(trn, trgt_train)
@@ -139,11 +148,14 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
 #    rmse(preds, trgt_test)
 #    mae(preds, trgt_test)
 
-    return(custpreds);
+    return(trainpreds, testpreds);
 
 if __name__ == '__main__' :
     train, test = import_data()
 #    test1 = create_predictions_custs_then_sales(train,test, load_or_run = 'load')
-    test['Sales'] = create_predictions_sales(train,test, load_or_run = 'load')
-    test.to_csv('test_with_preds.csv')
-    train.to_csv('train_for_app.csv')
+    trainpreds, testpreds = create_predictions_sales(train,test, load_or_run = 'run')
+    train['Preds'] = trainpreds
+    test['Preds'] = testpreds
+    test['Sales'] = testpreds
+    test.to_csv('test_with_preds2.csv')
+    train.to_csv('train_for_app2.csv')
