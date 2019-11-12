@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Jul  7 15:26:34 2018
-
-@author: evanc
-"""
-
 import dash
 import dash_core_components as dcc
 print(dcc.__version__)
@@ -38,8 +31,8 @@ dtyp = {'Assortment':object,
         'month':int,
         'Date':object
         }
-obs = pd.read_csv('train_for_app2.csv', dtype = dtyp)
-pred = pd.read_csv('test_with_preds2.csv', dtype = dtyp)
+obs = pd.read_csv('data/train_for_app2.csv', dtype = dtyp)
+pred = pd.read_csv('data/test_with_preds2.csv', dtype = dtyp)
 obs['Set'] = 'Observed'
 pred['Set'] = 'Predicted'
 
@@ -53,35 +46,6 @@ feat_imp = pd.DataFrame({'Features':model.Features,
 feat_imp = feat_imp.sort_values(by = 'Importances', ascending = False)
 
 date_agg = comb.groupby(['Date', 'Set'], as_index = False)[['Sales', 'Preds']].sum()
-
-#trace1 = go.Scatter(
-#    x=date_agg.index,
-#    y=date_agg.Sales,
-#    name = "Aggregated Sales",
-#    line = dict(color = '#17BECF'),
-#    opacity = 0.8)
-#
-#data1 = [trace1]
-#layout1 = dict(
-#    title='Aggregated Sales',
-#    xaxis=dict(
-#        rangeselector=dict(
-#            buttons=list([
-#                dict(count=1,
-#                     label='1m',
-#                     step='month',
-#                     stepmode='backward'),
-#                dict(count=6,
-#                     label='6m',
-#                     step='month',
-#                     stepmode='backward'),
-#                dict(step='all')
-#            ])
-#        ),
-#        rangeslider=dict(),
-#        type='date'
-#    )
-#)
 
 store_agg = comb.groupby(['Date', 'Store'], as_index = False)[['Sales', 'Preds']].sum()
 
