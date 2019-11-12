@@ -8,4 +8,5 @@ This project utilizes data from the Kaggle competition posted by Rossman Stores 
 
 I practiced model building in both R and Python though the predictions from `main.py` are used in `optim-app` on the sales predictions page.
 
-## 
+The app is no longer deployed but integrated into `optim-app`.
+
