@@ -1,14 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 25 05:16:22 2018
-
-@author: evanc
-"""
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
+import pickle
 from sklearn.externals import joblib
 from sklearn.model_selection import GridSearchCV
 from sklearn import preprocessing
@@ -18,9 +12,9 @@ import graphviz
 
 def import_data():
 
-    train = pd.read_csv('train.csv')
-    test = pd.read_csv('test.csv')
-    stores = pd.read_csv('store.csv')
+    train = pd.read_csv('data/train.csv')
+    test = pd.read_csv('data/test.csv')
+    stores = pd.read_csv('data/store.csv')
 
     train = train.merge(stores, how = 'left', on = 'Store')
     test = test.merge(stores, how = 'left', on = 'Store')
@@ -61,10 +55,6 @@ def import_data():
     train['CompOpen'] = train.CompOpenDate >= train.Date.astype(str)
     test['CompOpen'] = test.CompOpenDate >= test.Date.astype(str)
 
-#    keep = ['Store', 'Sales', 'Customers', 'DayOfWeek', 'Date', 'Open', 'Promo', 'StoreType', 'Assortment', 'month', 'CompDist', 'CompOpen']
-#    train = train[keep]
-#    keep = list(set(keep) - set(['Sales', 'Customers']))
-#    test = test[keep]
     test = test.drop('Id', axis = 1)
 
     test['Customers'] = -1
@@ -75,7 +65,7 @@ def import_data():
 
     test = comb.loc[comb.Sales == -1,]
     train = comb.loc[comb.Sales != -1]
-    return train, test;
+    return train, test
 
 def create_predictions_sales(train, test, load_or_run = 'run'):
     sub= train.drop(['Customers', 'Date'], axis = 1)
@@ -113,9 +103,11 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
         error = np.mean(abs(preds-target))
         print(error)
         return(error)
+
     if load_or_run == 'load':
         xg = joblib.load("sales2.joblib.dat")
         print('loaded')
+
     else:
         param_grid = {
                 'n_jobs':[4],
@@ -148,7 +140,7 @@ def create_predictions_sales(train, test, load_or_run = 'run'):
 #    rmse(preds, trgt_test)
 #    mae(preds, trgt_test)
 
-    return(trainpreds, testpreds);
+    return(trainpreds, testpreds)
 
 if __name__ == '__main__' :
     train, test = import_data()
